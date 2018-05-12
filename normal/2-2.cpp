@@ -28,6 +28,10 @@ struct PokerHand {
       suite[count] = sweet;
       ++count;
     }
+
+    if (count == hand) {
+      sort_cards();
+    }
   }
 	
   int rank_card(char fig) {
@@ -98,10 +102,6 @@ struct PokerHand {
     }
   }
 	
-  int rank_hand() {
-		
-  }
-	
   void sort_cards() {
     char c1, c2;
     int r, i, j;
@@ -121,10 +121,6 @@ struct PokerHand {
       figure[j+1] = c1;
       suite[j+1] = c2;
     }
-		
-    for (int i=0; i<hand; ++i)
-      cout << figure[i] << suite[i] << ' ';
-    cout << endl;
   }
 
   bool successive() {
@@ -159,20 +155,35 @@ struct PokerHand {
     
     switch (tmp[0]) {
     case 4:
-      return 41;
+      same_fig = 41;
+      break;
     case 3:
       if (tmp[1] == 2)
-        return 32;
+        same_fig = 32;
       else
-        return 31;
+        same_fig = 31;
+      break;
     case 2:
       if (tmp[1] == 2)
-        return 22;
+        same_fig = 22;
       else
-        return 21;
+        same_fig = 21;
+      break;
     case 1:
-      return 11;
+      same_fig = 11;
+      break;
     }
+
+    return same_fig;
+  }
+
+  int figure_by_cnt(int cnt, int start=0) {
+    for (int i=start; i<hand; i++) {
+      if (same_fig_cnt[rank_card(figure[i])] == cnt) return i;
+    }
+
+    cout << "not found in figure_by_cnt(" << cnt << ", " << start << endl;
+    return -1;
   }
 
   void clear() {
@@ -185,6 +196,125 @@ struct PokerHand {
     same_fig = -1;
     memset(same_fig_cnt, 0, sizeof(same_fig_cnt) / sizeof(char));
   }
+
+  int rank_hand() {
+    char sm_fig = check_same_figure();
+    char sm_suite = same_suite;
+    char successv = successive();
+
+    if (successv && same_suite) {
+      return 9;
+    }
+
+    if (sm_fig > 40) {
+      return 8;
+    }
+
+    if (sm_fig == 32) {
+      return 7;
+    }
+
+    if (same_suite) {
+      return 6;
+    }
+
+    if (successv) {
+      return 5;
+    }
+
+    if (sm_fig == 31) {
+      return 4;
+    }
+
+    if (sm_fig == 22) {
+      return 3;
+    }
+
+    if (sm_fig == 21) {
+      return 2;
+    }
+
+    return 1;
+  }
+
+  int compare_hand(PokerHand& p) {
+    int rank1 = rank_hand();
+    int rank2 = p.rank_hand();
+
+    int i, j;
+    if (rank1 == rank2) {
+      switch (rank1) {
+      case 9:
+        i = 0;
+        j = 0;
+        break;
+      case 8:
+        i = figure_by_cnt(4);
+        j = p.figure_by_cnt(4);
+        break;
+      case 7:
+        i = figure_by_cnt(3);
+        j = p.figure_by_cnt(3);
+        break;
+      case 6:
+        for (i=0,j=0; i<hand-1 && figure[i]==p.figure[j]; ++i, ++j);
+        break;
+      case 5:
+        i = 0;
+        j = 0;
+        break;
+      case 4:
+        i = figure_by_cnt(3);
+        j = p.figure_by_cnt(3);
+        break;
+      case 3:
+        i = figure_by_cnt(2);
+        j = p.figure_by_cnt(2);
+        if (figure[i] != p.figure[j]) {
+          break;
+        }
+        
+        i = figure_by_cnt(2, i+2);
+        j = p.figure_by_cnt(2, j+2);
+        if (figure[i] != p.figure[j]) {
+          break;
+        }
+
+        i = figure_by_cnt(1);
+        j = p.figure_by_cnt(1);
+        break;
+        
+      case 2:
+        i = figure_by_cnt(2);
+        j = p.figure_by_cnt(2);
+        if (figure[i] != p.figure[j]) {
+          break;
+        }
+        i = -1, j=-1;
+        for (int k=0; k<2; ++k) {
+          i = figure_by_cnt(1, i+1);
+          j = p.figure_by_cnt(1, j+1);
+          //cout << figure[i] << "<>" << p.figure[j] << endl;
+          if (figure[i] != p.figure[j])
+            goto return_rank_card_diff;
+        }
+
+        i = figure_by_cnt(1, i+1);
+        j = p.figure_by_cnt(1, j+1);
+        break;
+      case 1:
+        for (i=0,j=0; i<hand-1 && figure[i]==p.figure[j]; ++i,++j);
+        break;
+      }
+
+    return_rank_card_diff:
+      return rank_card(figure[i]) - rank_card(p.figure[j]);
+    }
+    else {
+      return rank1 - rank2;
+    }
+  }
+   
 	
   char figure[hand];
   char suite[hand];
@@ -196,12 +326,17 @@ struct PokerHand {
   char same_fig_cnt[radix+1];
 };
 
+void examine_hand(PokerHand& p);
+
 int main() {
   PokerHand p1;
   PokerHand p2;
   int i;
   char c1, c2;
   while (cin >> c1 >> c2) {
+    p1.clear();
+    p2.clear();
+
     p1.add(c1, c2);
     for (i=1; i<5; ++i) {
       cin >> c1 >> c2;
@@ -215,7 +350,27 @@ int main() {
       p2.add(c1,c2);
     }
 
-    p1.sort_cards();
-    p2.sort_cards();
+    //examine_hand(p1);
+    //examine_hand(p2);
+    
+    i = p1.compare_hand(p2);
+
+    if (i > 0)
+      cout << "Black wins.\n";
+    else if (i < 0)
+      cout << "White wins.\n";
+    else
+      cout << "Tie.\n";
+
+    //cout << endl;
   }
+}
+
+void examine_hand(PokerHand& p) {
+  for (int i=0; i<PokerHand::hand; i++) {
+    if (i) cout << ' ';
+    cout << p.figure[i] << p.suite[i];
+    if (i==PokerHand::hand-1) cout << '\n';
+  }  
+  cout << "hand rank is " << p.rank_hand() << endl;
 }
