@@ -3,6 +3,7 @@
 #include <map>
 #include <vector>
 #include <string>
+#include <algorithm>
 #include <cctype>
 #include <cassert>
 #include <cstring>
@@ -11,21 +12,19 @@ using namespace std;
 
 enum { N = 26, NW = 16 };
 
-char cypher[N] = {0};
-char decypher[N] = {0};
-
-set<string> puzzle;
-multimap<int, string> dict_by_len;
 map<string, int> dict;
+map<string, set<string> > dict_by_pat;
+set<string> puzzle;
 
-static int do_crypt(const string& sent, char* cypher, set<string>::iterator begin, set<string>::iterator end);
+//make sure 1-1 mapping
+char encoder[N];
+char decoder[N];
+
+static int do_crypt(const string& sent, set<string>::iterator begin, set<string>::iterator end);
+
 
 void crypt(const string& sent) {
   puzzle.clear();
-
-  for(map<string, int>::iterator it=dict.begin(); it!=dict.end(); ++it) {
-    it->second = 0;
-  }
 
   string::const_iterator beg = sent.begin();
   string::const_iterator end = sent.end();
@@ -39,10 +38,19 @@ void crypt(const string& sent) {
     while(beg != end && isspace(*beg)) ++beg;
   }
 
-  char cypher[N] = {0};
-  set<string>::iterator it = puzzle.begin();
-  set<string>::iterator end_of_puzzle = puzzle.end();
-  if (!do_crypt(sent, cypher, it, end_of_puzzle)) {
+  //cout << "\n" << sent << endl;
+
+  memset(encoder, 0, N);
+  memset(decoder, 0, N);
+
+  for(map<string, int>::iterator dict_beg=dict.begin(); dict_beg!=dict.end(); ++dict_beg) {
+    assert(dict_beg->second == 0);
+  }
+  
+  set<string>::iterator beg_puzzle = puzzle.begin();
+  set<string>::iterator end_puzzle = puzzle.end();
+
+  if (!do_crypt(sent, beg_puzzle, end_puzzle)) {
     for (int i=0; i<sent.size(); ++i) {
       if (sent[i] != ' ') cout << '*';
       else cout << sent[i];
@@ -53,72 +61,115 @@ void crypt(const string& sent) {
   //cout << '\n';//delete me after debug
 }
 
-void candidate(const string& crypt_word, vector<string> &v) {
-  typedef multimap<int, string>::const_iterator IT;
-  pair<IT,IT> range = dict_by_len.equal_range(crypt_word.size());
-  IT it = range.first, end = range.second;
-  for (; it!=end; ++it) {
-    if (dict[it->second] == 0) {
-      v.push_back(it->second);
+string word_pattern(const string& w) {
+  string s;
+  char alphabet[N] = {0};
+  int cnt = 0;
+  char t;
+  for (int i=0; i<w.size(); ++i) {
+    t = w[i];
+    t -= 'a';
+    if (alphabet[t] == 0) {
+      alphabet[t] = ++cnt;
     }
+    s.push_back(alphabet[t]);
+  }
+  return s;
+}
+
+
+void guess_word_mapping(const string& word, vector<string>& v) {
+  size_t sz = word.size();
+  string pat_word = word_pattern(word);
+  
+  set<string>& cand = dict_by_pat[pat_word];
+
+  for (set<string>::iterator it=cand.begin(); it!=cand.end(); ++it) {
+
+    // bool conflict = false;
+    // for (int i=0; i<word.size(); ++i) {
+    //   char e = (*it)[i];
+    //   char d = word[i];
+    //   if (encoder[e]!=0 && decoder[d]!=0 && (encoder[e]!=d || decoder[d]!=e)) {
+    //     conflict = true;
+    //     break;
+    //   }
+    // }
+    
+    if (!dict[*it]) v.push_back(*it);
   }
 }
 
-int do_crypt(const string& sent, char* cypher, set<string>::iterator begin, set<string>::iterator end) {
+
+int do_crypt(const string& sent, set<string>::iterator begin, set<string>::iterator end) {
   if (begin == end) {
     for (int i=0; i<sent.size(); i++) {
-      if (sent[i] != ' ') cout << cypher[sent[i]-'a'];
+      if (sent[i] != ' ') cout << decoder[sent[i]-'a'];
       else cout << ' ';
     }
     cout << '\n';
     return 1;
   }
+  
 
   set<string>::iterator begin_next(begin);
   ++begin_next;
 
-  string w = *begin;
-
+  const string &w = *begin;
+  string guess;
   vector<string> cand;
-  candidate(w, cand);
+  guess_word_mapping(w, cand);
 
-  string a;
+  //cout << cand.size() << " candidates for " << w << endl;
+  
+  if (cand.size() == 0) {
+    //cout << "failed because no candidate\n";
+    return 0;
+  }
+
   vector<char> alpha_q;
+  
   for (int i=0; i<cand.size(); ++i) {
-    a = cand[i];
+    guess = cand[i];
+    assert(guess.size() == w.size());
 
-    assert(a.size() == w.size());
-
-    for (int j=0; j<a.size(); ++j) {
-      //cout << cypher[w[j]-'a'] << endl;
+    //cout << "really trying: " << w << ": " << guess << endl;
+    
+    for (int j=0; j<guess.size(); ++j) {
+      //cout << j << " " << decoder[w[j]-'a'] << " " << encoder[guess[j]-'a'] << endl;
       
-      if (cypher[w[j]-'a'] == a[j] ) continue;
+      if (decoder[w[j]-'a'] == guess[j] && encoder[guess[j]-'a'] == w[j]) continue;
 
-      else if (cypher[w[j]-'a'] == 0) {
+      else if (decoder[w[j]-'a'] == 0 && encoder[guess[j]-'a']==0) {
         alpha_q.push_back(w[j]);
-        cypher[w[j]-'a'] = a[j];
+        decoder[w[j]-'a'] = guess[j];
+        encoder[guess[j]-'a'] = w[j];
       }
-
+      
       else {
         //conflict with previously specified cypher
         goto next_candidate;
       }
     }
 
-    if (dict[a] == 0) {
-      //cout << "trying a=" << a << endl;
-      dict[a] = 1;
-      if (do_crypt(sent, cypher, begin_next, end)) return 1;
-      dict[a] = 0;
+    
+    if (!dict[guess]) {
+      dict[guess] = 1;
+      if (do_crypt(sent, begin_next, end)) {
+        dict[guess] = 0;
+        return 1;
+      }
+      dict[guess] = 0;
     }
     else {
-      if (do_crypt(sent, cypher, begin_next, end)) return 1;
+      if (do_crypt(sent, begin_next, end)) return 1;
     }
     
 
   next_candidate:
     for (int k=0; k<alpha_q.size(); ++k) {
-      cypher[alpha_q[k]-'a'] = 0;
+      encoder[decoder[alpha_q[k]-'a']-'a'] = 0;
+      decoder[alpha_q[k]-'a'] = 0;
     }
     alpha_q.clear();
   }
@@ -135,13 +186,11 @@ int main() {
   for (i=0; i<n; i++) {
     cin >> s;
     dict.insert(pair<string, int>(s, 0));
-    dict_by_len.insert(pair<int, string>(s.size(), s));
+    dict_by_pat[word_pattern(s)].insert(s);
   }
   getline(cin, s);//trailing \n
 
   while (getline(cin, s)) {
-    memset(cypher, 0, N);
-    memset(decypher, 0, N);
     crypt(s);
   }
 

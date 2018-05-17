@@ -2,6 +2,7 @@
 #include <vector>
 #include <string>
 #include <cstdlib>
+#include <cstring>
 
 using namespace std;
 
@@ -40,7 +41,7 @@ string dict[] = {
   "hatred",
   "hazzard",
   "zoo",
-  "haddop",
+  "hadoop",
   "hive",
   "keeper",
   "java",
@@ -64,20 +65,27 @@ string crypt(const string word, char (alpha)[26]) {
   return s;
 }
 
-int main() {
+int main(int argc, const char** argv) {
+  if (argc != 2) cout << "usage: 2-4.gen <text|code>" << endl;
+  bool text = !strcmp("text", argv[1]);
+  
   size_t n = sizeof(dict) / sizeof(dict[0]);
+  cout << n << endl;//num o dictionary
   
   vector<string> v;
 
-  cout << n << endl;
   for (int i=0; i<n; ++i) {
     cout << dict[i] << endl;
   }
-  cout << endl;
 
-  for (int i=0; i<10; i++) {
+  for (int i=0; i<30; i++) {
     v.clear();
-    int n_words = rand() % n % 6;
+    int n_words = rand() % n;
+
+    if (!n_words) {
+      n--;
+      continue;
+    }
 
     char alpha[26];
     for (int j=0; j<26; ++j) alpha[j] = 'a' + j;
@@ -92,8 +100,8 @@ int main() {
     for (int j=0; j<n_words; ++j) {
       int r = rand() % n;
       if (j) cout << ' ';
-      //cout << crypt(dict[r], alpha);
-      cout << dict[r] << ' ';
+      if (!text) cout << crypt(dict[r], alpha);
+      else cout << dict[r] << ' ';
     }
     cout << endl;
   }
