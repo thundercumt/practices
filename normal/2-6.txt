@@ -1,0 +1,19 @@
+3 5
+Smith, M.N., Martin, G., Erdos, P.: Newtonian forms of prime factors matrices.
+Gardner, M., Martin, G.: Commuting Names
+Fucker,  Cao, Gardner, M., Shhdttgeelom, W.Y. : Partition No. 11
+Smith, M.N.
+Gardner, M.
+Shhdttgeelom, W.Y. 
+Fucker,  Cao
+Fucker,  Cao 
+3 5
+Smith, M.N., Martin, G., Erdos, P.: Newtonian forms of prime factors matrices.
+Gardner, M., Martin, G.: Commuting Names
+Gaaa, Gbbb, Paaa, Pbbb, Saaa, Sbbb, Gardner, M.: Computer Games
+Smith, M.N.
+Gardner, M.
+Martin, G.
+Saaa, Sbbb
+Paaa, Sbbb
+0 0
