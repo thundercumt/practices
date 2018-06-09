@@ -11,23 +11,19 @@ const int NA = 17;
 const int NW = 25160;
 const int NR = 1024000;
 
-struct link {
-  int i;
-  link *next;
-};
 
-struct node {
-  char *pword;
-  link *near;
-};
+char* gets_s(char* a) {
+  char * ret = fgets(a, NA*3, stdin);
 
-node graph[NW] = {0};
-int ncount = 0;
+  if (ret) {
+    size_t sz = strlen(a);
+    if (sz > 0) a[sz - 1] = 0;
+    else a[0] = 0;
+  }
 
-link link_pool[NR];
-int rcount = 0;
+  return ret;
+}
 
-char words[NW][NA] = {0};
 
 struct cmp_str{
   bool operator() (const char* pa, const char* pb) const {
@@ -35,78 +31,53 @@ struct cmp_str{
   }
 };
 
-std::map<char *, int, cmp_str> m;
-std::map<int, std::set<int> > wordbag;
+
+char words[NW][NA] = {0};
+std::map<char *, int, cmp_str> m[NA];
+std::vector<int>  wordbag[NA];
+std::vector<int> graph[NW];
 
 
-void clear() {
-  m.clear();
-  wordbag.clear();
-  memset(graph, 0, sizeof(node) * NW);
-  memset(link_pool, 0, sizeof(link) * NR);
-  memset(words, 0, NW * NA);
-  ncount = 0;
-  rcount = 0;
+int doublet(int a, int b, int len) {
+  int c = 0;
+  for (int i=0; i<len; ++i) {
+    if (words[a][i] != words[b][i]) ++c;
+
+    if (c > 1) return 0;
+  }
+  return c==1;
 }
 
-link* new_link(int i) {
-  int r = rcount++;
-  link_pool[r].i = i;
-  link_pool[r].next = 0;
-  return &link_pool[r];
-}
 
-int new_word(char * s) {
-  if (m.count(s)) return m[s];
+void build_graph() {
+  for (int i=1; i<NA; ++i) {
+    int sz = wordbag[i].size();
 
-  int sz = strlen(s);
-  int r = ncount++;
-
-  strcpy(words[r], s);
-  m[words[r]] = r;
-  graph[r].pword = words[r];
-  graph[r].near = 0;
-
-  if (wordbag[sz].size() > 0) {
-    std::set<int>& cand = wordbag[sz];
-    /**
-    for(std::set<int>::iterator it = cand.begin(); it != cand.end();  ++it) {
-
-      char* a = graph[*it].pword;
-      if (distance(s, a) == 1) {
-        link* ln = new_link(r);
-        if (graph[*it].near == 0) graph[*it].near = ln;
-        else {
-          ln->next = graph[*it].near;
-          graph[*it].near = ln;
-        }
-
-        ln = new_link(*it);
-        if (graph[r].near == 0) graph[r].near = ln;
-        else {
-          ln->next = graph[r].near;
-          graph[r].near = ln;
+    for (int j=0; j<sz; ++j) {
+      for (int k=j+1; k<sz; ++k) {
+        int p = wordbag[i][j];
+        int q = wordbag[i][k];
+        if (doublet(p, q, i)) {
+          graph[p].push_back(q);
+          graph[q].push_back(p);
         }
       }
-      
     }
-    */
   }
 
-  wordbag[sz].insert(r);
-  return r;
 }
 
+
 void calc_graph() {
-  for (std::map<int, std::set<int> >::iterator it=wordbag.begin(); it != wordbag.end(); ++it) {
-    int sz = it->first;
-    std::set<int> &grp = it->second;
+  for (int i=1; i<NA; ++i) {
+    int sz = i;
+    std::vector<int> &grp = wordbag[i];
 
     std::map<std::string, std::vector<int> > tm;
 
-    for (std::set<int>::iterator git=grp.begin(); git!=grp.end(); ++git) {
+    for (std::vector<int>::iterator git=grp.begin(); git!=grp.end(); ++git) {
       int widx = *git;
-      std::string w(graph[widx].pword);
+      std::string w(words[widx]);
 
       for (int i=0; i<sz; ++i) {
         std::string tw(w);
@@ -115,9 +86,9 @@ void calc_graph() {
       }
     }
 
-    for (std::set<int>::iterator git=grp.begin(); git!=grp.end(); ++git) {
+    for (std::vector<int>::iterator git=grp.begin(); git!=grp.end(); ++git) {
       int widx = *git;
-      std::string w(graph[widx].pword);
+      std::string w(words[widx]);
 
       for (int i=0; i<sz; ++i) {
         std::string tw(w);
@@ -128,16 +99,7 @@ void calc_graph() {
         for (std::vector<int>::iterator tvit=tv.begin(); tvit!=tv.end(); ++tvit) {
           int neigh = *tvit;
           if (neigh != widx) {
-
-            link *ln = new_link(neigh);
-            
-            if (graph[widx].near == 0) {
-              graph[widx].near = ln;
-            }
-            else {
-              ln->next = graph[widx].near;
-              graph[widx].near = ln;
-            }
+            graph[widx].push_back(neigh);
           }
         }
 
@@ -147,108 +109,86 @@ void calc_graph() {
 
   }
 }
-   
 
-
-void look_up(int a, int b, std::deque<int>& q, std::vector<int>& bt_map) {
-  q.clear();
-  bt_map.clear();
-  bt_map.resize(ncount);
+void look_up(int a, int b) {
+  std::deque<int> q;
+  int bt_map[NW];
+  for (int i=0; i<NW; ++i) bt_map[i] = -2;
 
   q.push_back(a);
   bt_map[a] = -1;//mark start of look up
   
   int from, to;
-  link *pl;
 
-  if (a==b) return;
-  
-  while(q.size()) {
+  bool found = false;
+  while(q.size() && !found) {
     from = q.front();
     q.pop_front();
 
-    for (pl=graph[from].near; pl; pl=pl->next) {
-      to = pl->i;
+    for (int i=0; i<graph[from].size(); ++i) {
+      to = graph[from][i];
 
-      if (bt_map[to] == 0) {
+      if (bt_map[to] == -2) {
         bt_map[to] = from;
         q.push_back(to);
 
-        if (to == b) return;
+        if (to == b) {
+          found = true;
+          break;
+        }
       }
     }
-    
-  }
-}
-
-
-void output(int a, int b, std::vector<int>& bt) {
-  std::vector<int> track;
-  int p;
-
-  p = b;
-  while (p >= 0) {
-    track.push_back(p);
-    p = bt[p];
   }
 
-  for (std::vector<int>::reverse_iterator it=track.rbegin(); it != track.rend(); ++it) {
-    printf("%s\n", graph[*it].pword);
+
+  if (!found) {
+    printf("No solution.\n");
+  }
+  else {
+    int p=b;
+    while (p >= 0) {
+      printf("%s\n", words[p]);
+      p = bt_map[p];
+    }
   }
 }
 
 int main() {
-  char buf[NA * 3] = {0};
   int ncase = -1;
-
+  clock_t t = clock();
   
-  while (gets(buf)) {
-    clear();
-    
-    clock_t start_t = clock();
+  int ncount = 0;
+  while(gets_s(words[ncount])) {
+    int sz = strlen(words[ncount]);
+    if (sz == 0) break;
 
-    new_word(buf);
-    while(gets(buf)) {
-      if (strlen(buf) == 0) break;
+    m[sz][words[ncount]] = ncount;
+    wordbag[sz].push_back(ncount);
+  
+    ++ncount;
+  }
 
-      new_word(buf);
+  t = clock() - t;
+  //printf("took %lu ticks\n", t);
+
+  t = clock();
+  build_graph();
+  t = clock() - t;
+  //printf("took %lu ticks\n", t);
+
+  char a[NA], b[NA];
+  while (scanf("%s %s", a, b) == 2) {
+    ++ncase;
+    if (ncase) printf("\n");
+
+    if (strlen(a) != strlen(b)) {
+      printf("No solution.\n");
     }
-
-    calc_graph();
-
-    
-    clock_t end_t = clock();
-    //printf("adding dictionary took %lu.%lu secs\n", (end_t - start_t) / CLOCKS_PER_SEC, (end_t - start_t) % CLOCKS_PER_SEC);
-
-    while (gets(buf)) {
-      ++ncase;
-      if (ncase) printf("\n");
-
-      
-      char * stop = strchr(buf, ' ');
-      *stop = 0;
-
-      char *a = buf;
-
-      stop += 1;
-      char *b = stop;
-
-      if (strlen(a) != strlen(b)) {
-        printf("No solution.\n");
-      }
-      else {
-        int x = m[a];
-        int y = m[b];
-        std::deque<int> q;
-        std::vector<int> bt;
-        look_up(x, y, q, bt);
-        //output
-        output(x, y, bt);
-      }
-      
-      
-    }
-    
+    else {
+      int x = m[strlen(a)][a];
+      int y = m[strlen(b)][b];
+      look_up(y, x);
+    }      
   }
 
 }
